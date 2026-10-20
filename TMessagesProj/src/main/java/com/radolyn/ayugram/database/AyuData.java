@@ -13,12 +13,14 @@ import androidx.room.Room;
 import com.radolyn.ayugram.AyuConstants;
 import com.radolyn.ayugram.database.dao.DeletedMessageDao;
 import com.radolyn.ayugram.database.dao.EditedMessageDao;
+import com.radolyn.ayugram.database.dao.TeleDriveDao;
 import org.telegram.messenger.ApplicationLoader;
 
 public class AyuData {
     private static AyuDatabase database;
     private static EditedMessageDao editedMessageDao;
     private static DeletedMessageDao deletedMessageDao;
+    private static TeleDriveDao teleDriveDao;
 
     static {
         create();
@@ -32,6 +34,7 @@ public class AyuData {
 
         editedMessageDao = database.editedMessageDao();
         deletedMessageDao = database.deletedMessageDao();
+        teleDriveDao = database.teleDriveDao();
     }
 
     public static AyuDatabase getDatabase() {
@@ -44,6 +47,10 @@ public class AyuData {
 
     public static DeletedMessageDao getDeletedMessageDao() {
         return deletedMessageDao;
+    }
+
+    public static TeleDriveDao getTeleDriveDao() {
+        return teleDriveDao;
     }
 
     public static void clean() {
