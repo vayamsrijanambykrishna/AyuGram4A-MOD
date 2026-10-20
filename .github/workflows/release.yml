@@ -9,6 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/21.4.7075529
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_MAXSIZE: "10G"
@@ -18,45 +20,19 @@ jobs:
       - name: Free Disk Space on Runner
         run: |
           sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* || true
-          sudo rm -rf /opt/ghc /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* /usr/local/lib/android/sdk/ndk/27* || true
+          sudo rm -rf /opt/ghc /usr/local/.ghcup /usr/local/share/powershell || true
           df -h
 
-      - name: Checkout Repository (Without Private Submodule)
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: false
           fetch-depth: 1
 
-      - name: Clean Broken Submodule Reference if Present
+      - name: Clean Broken Submodule Reference
         run: |
           rm -rf TMessagesProj/src/main/java/com/radolyn/ayugram/proprietary || true
-
-      - name: Generate Debug Keystore for Signing Release APK
-        run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkey -v \
-              -keystore ~/.android/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-      - name: Write API_KEYS Config
-        run: |
-          cat << 'EOK' > ./API_KEYS
-          APP_ID = 6
-          APP_HASH = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-          MAPS_V2_API = AIzaSyAzki2--tsG2w92-f842qRmY7UfhLO9sg8
-          SIGNING_KEY_PASSWORD = android
-          SIGNING_KEY_ALIAS = androiddebugkey
-          SIGNING_KEY_STORE_PASSWORD = android
-          EOK
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -71,19 +47,44 @@ jobs:
           key: ccache-ayugram
           restore-keys: ccache-ayugram
 
-      - name: Setup Android SDK, NDK 21.4.7075529 & CMake 3.10.2
-        uses: android-actions/setup-android@v3
-
-      - name: Install Required Android NDK & Build-Tools
+      - name: Install NDK, CMake & Build Tools (Bypassing deprecated tools package)
         run: |
           sudo apt-get update
           sudo apt-get install -y bison gcc make curl ninja-build ccache
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-33" "build-tools;30.0.3" "build-tools;33.0.1" "ndk;21.4.7075529" "cmake;3.10.2.4988404"
+          
+          # Use pre-installed sdkmanager on GitHub Actions runner
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager | head -n 1)
+          fi
+          echo "Using sdkmanager at: $SDKMANAGER"
+          
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install "platforms;android-33" "build-tools;30.0.3" "build-tools;33.0.1" "ndk;21.4.7075529" "cmake;3.10.2.4988404"
+          
+          # Fix dx compatibility between 30.0.3 and 33.0.1
           if [ -f "$ANDROID_HOME/build-tools/30.0.3/dx" ] && [ ! -f "$ANDROID_HOME/build-tools/33.0.1/dx" ]; then
             cp "$ANDROID_HOME/build-tools/30.0.3/dx" "$ANDROID_HOME/build-tools/33.0.1/dx"
             cp "$ANDROID_HOME/build-tools/30.0.3/lib/dx.jar" "$ANDROID_HOME/build-tools/33.0.1/lib/dx.jar"
           fi
+
+      - name: Generate Debug Keystore for Release Signing
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v               -keystore ~/.android/debug.keystore               -storepass android               -alias androiddebugkey               -keypass android               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Write API_KEYS Config
+        run: |
+          cat << 'EOK' > ./API_KEYS
+          APP_ID = 6
+          APP_HASH = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
+          MAPS_V2_API = AIzaSyAzki2--tsG2w92-f842qRmY7UfhLO9sg8
+          SIGNING_KEY_PASSWORD = android
+          SIGNING_KEY_ALIAS = androiddebugkey
+          SIGNING_KEY_STORE_PASSWORD = android
+          EOK
 
       - name: Grant Execute Permission for gradlew
         run: chmod +x gradlew
