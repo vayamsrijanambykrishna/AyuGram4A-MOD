@@ -1,0 +1,151 @@
+name: Build ARM64 Release APK (Debug Signed)
+
+on:
+  push:
+    branches: ["*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/21.4.7075529
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_MAXSIZE: "10G"
+      CCACHE_HARDLINK: "true"
+
+    steps:
+      - name: Free Disk Space on Runner
+        run: |
+          echo "=== Freeing runner disk space ==="
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/25*
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/26*
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/27*
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/local/share/powershell
+          df -h /
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-ayugram-arm64
+          restore-keys: ccache-ayugram-arm64
+
+      - name: Install NDK, CMake & Build Tools
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y bison gcc make curl ninja-build ccache
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          fi
+          if [ ! -f "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found"
+            exit 1
+          fi
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install \
+            "platforms;android-33" \
+            "build-tools;30.0.3" \
+            "build-tools;33.0.1" \
+            "ndk;21.4.7075529" \
+            "cmake;3.10.2.4988404"
+
+          # Compatibility workaround for legacy dx users
+          if [ -f "$ANDROID_HOME/build-tools/30.0.3/dx" ] && [ ! -f "$ANDROID_HOME/build-tools/33.0.1/dx" ]; then
+            cp "$ANDROID_HOME/build-tools/30.0.3/dx" "$ANDROID_HOME/build-tools/33.0.1/dx"
+            cp "$ANDROID_HOME/build-tools/30.0.3/lib/dx.jar" "$ANDROID_HOME/build-tools/33.0.1/lib/dx.jar"
+          fi
+          echo "=== Installed SDK packages ==="
+          "$SDKMANAGER" --list_installed || true
+
+      - name: Generate Debug Keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Write API_KEYS Config
+        shell: bash
+        run: |
+          cat > ./API_KEYS <<'EOK'
+          APP_ID = 6
+          APP_HASH = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
+          MAPS_V2_API = AIzaSyAzki2--tsG2w92-f842qRmY7UfhLO9sg8
+          SIGNING_KEY_PASSWORD = android
+          SIGNING_KEY_ALIAS = androiddebugkey
+          SIGNING_KEY_STORE_PASSWORD = android
+          EOK
+
+      - name: Grant Execute Permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build ARM64 Release APK with CPU/RAM Monitoring
+        timeout-minutes: 90
+        shell: bash
+        run: |
+          set -o pipefail
+          (
+            while true; do
+              sleep 60
+              echo ""
+              echo "===== BUILD MONITOR $(date -u '+%H:%M:%S UTC') ====="
+              echo "--- Memory & Swap ---"
+              free -h
+              echo "--- CPU Load ---"
+              uptime
+              echo "--- Top 5 CPU Consumers ---"
+              ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -6
+              echo "--- Active Compilers ---"
+              pgrep -a -f 'clang|ninja|ld.lld|java' || true
+              echo "--- Disk Space ---"
+              df -h / | awk 'NR==2 {print "Used: "$3" / "$2" ("$5")"}'
+            done
+          ) &
+          MONITOR_PID=$!
+          trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
+
+          ./gradlew assembleArm64Release --no-configuration-cache
+
+      - name: Upload ARM64 Release APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: AyuGram-ARM64-Release-APK
+          path: TMessagesProj/build/outputs/apk/arm64/release/*.apk
+          retention-days: 14
