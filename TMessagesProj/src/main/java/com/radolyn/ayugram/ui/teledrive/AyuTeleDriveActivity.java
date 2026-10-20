@@ -269,9 +269,9 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
         ActionBarMenu menu = actionBar.createMenu();
         ActionBarMenuItem moreItem = menu.addItem(0, R.drawable.ic_ab_other);
         moreItem.addSubItem(MENU_SWITCH_CHANNEL, R.drawable.msg_channel, "Switch Channel / New Vault");
-        moreItem.addSubItem(MENU_NEW_FOLDER, R.drawable.msg_folder, "New Folder");
+        moreItem.addSubItem(MENU_NEW_FOLDER, R.drawable.msg_folders, "New Folder");
         moreItem.addSubItem(MENU_UPLOAD_FILE, R.drawable.msg_sendfile, "Upload File to Folder");
-        moreItem.addSubItem(MENU_SORT, R.drawable.msg_sort, "Sort Files");
+        moreItem.addSubItem(MENU_SORT, R.drawable.msg_reorder, "Sort Files");
         moreItem.addSubItem(MENU_VAULT_SETTINGS, R.drawable.msg_settings, "Index & Sync Options");
 
         fragmentView = new FrameLayout(context);
@@ -425,7 +425,7 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle("Move "" + file.name + "" to:");
+        builder.setTitle("Move \"" + file.name + "\" to:");
         builder.setItems(labels.toArray(new CharSequence[0]), (d, which) -> {
             String targetFolder = targetIds.get(which);
             AyuTeleDriveController.getInstance().moveFiles(currentAccount, activeDialogId, Collections.singletonList(file.messageId), targetFolder);
@@ -737,9 +737,9 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
                 if (position == breadcrumbRow) {
                     String path = "📍 " + buildBreadcrumbPath();
                     String action = TeleDriveModels.ROOT_ID.equals(currentFolderId) ? "Switch Chat" : "Go Up";
-                    cell.setTextAndValueAndIcon(path, action, R.drawable.msg_folder, true);
+                    cell.setTextAndValueAndIcon(path, action, R.drawable.msg_folders, true);
                 } else if (position == newFolderActionRow) {
-                    cell.setTextAndIcon("Create New Folder", R.drawable.msg_folder, true);
+                    cell.setTextAndIcon("Create New Folder", R.drawable.msg_folders, true);
                 } else if (position == uploadFileActionRow) {
                     cell.setTextAndIcon("Upload File into Current Folder", R.drawable.msg_sendfile, false);
                 }
@@ -747,7 +747,7 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
                 TextCell cell = (TextCell) holder.itemView;
                 TeleDriveFolder folder = subFolders.get(position - foldersStartRow);
                 boolean divider = position != foldersEndRow - 1;
-                cell.setTextAndValueAndIcon(folder.name, "Folder", R.drawable.msg_folder, divider);
+                cell.setTextAndValueAndIcon(folder.name, "Folder", R.drawable.msg_folders, divider);
             } else if (type == 4) {
                 TextCell cell = (TextCell) holder.itemView;
                 TeleDriveFile file = files.get(position - filesStartRow);
