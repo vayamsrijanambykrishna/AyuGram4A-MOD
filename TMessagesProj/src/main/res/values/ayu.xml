@@ -85,6 +85,16 @@
   <string name="GhostModeDisabled">Ghost mode turned off</string>
   <string name="EditsHistoryTitle">Edits history</string>
   <string name="EditsHistoryMenuText">History</string>
+  <string name="EditedTimesSubtitle">Edited %1$d time(s) • %2$d versions</string>
+  <string name="VersionHistoryOriginal">Original version</string>
+  <string name="VersionHistoryCurrent">Current version</string>
+  <string name="VersionHistoryMediaReplaced">Media saved</string>
+  <string name="BotLoginButton">Login via Bot Token</string>
+  <string name="BotLoginTitle">Bot Token Login</string>
+  <string name="BotLoginHint">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</string>
+  <string name="BotTokenInvalid">Invalid Bot Token format. Please enter a valid token from @BotFather.</string>
+  <string name="TeleDriveTitle">TeleDrive Folders</string>
+  <string name="TeleDriveSaveToFolder">Save to TeleDrive Folder</string>
   <string name="ReadUntilMenuText">Read until</string>
   <string name="DeleteKeepLocally">Keep locally</string>
   <string name="BoxActionReset">Reset</string>
