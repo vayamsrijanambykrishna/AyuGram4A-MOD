@@ -91,13 +91,23 @@ public class AyuMessagesController {
         }
 
         var oldMessage = prefs.getMessage();
+        if (oldMessage == null || newMessage == null) {
+            return;
+        }
 
-        boolean sameMedia = oldMessage.media == newMessage.media ||
-                (oldMessage.media != null && newMessage.media != null && oldMessage.media.getClass() == newMessage.media.getClass());
-        if (oldMessage.media instanceof TLRPC.TL_messageMediaPhoto && newMessage.media instanceof TLRPC.TL_messageMediaPhoto && oldMessage.media.photo != null && newMessage.media.photo != null) {
-            sameMedia = oldMessage.media.photo.id == newMessage.media.photo.id;
+        boolean oldEmpty = oldMessage.media == null || oldMessage.media instanceof TLRPC.TL_messageMediaEmpty;
+        boolean newEmpty = newMessage.media == null || newMessage.media instanceof TLRPC.TL_messageMediaEmpty;
+        boolean sameMedia;
+        if (oldEmpty && newEmpty) {
+            sameMedia = true;
+        } else if (oldEmpty != newEmpty) {
+            sameMedia = false;
+        } else if (oldMessage.media instanceof TLRPC.TL_messageMediaPhoto && newMessage.media instanceof TLRPC.TL_messageMediaPhoto && oldMessage.media.photo != null && newMessage.media.photo != null) {
+            sameMedia = oldMessage.media.photo.id == newMessage.media.photo.id && oldMessage.media.photo.id != 0;
         } else if (oldMessage.media instanceof TLRPC.TL_messageMediaDocument && newMessage.media instanceof TLRPC.TL_messageMediaDocument && oldMessage.media.document != null && newMessage.media.document != null) {
-            sameMedia = oldMessage.media.document.id == newMessage.media.document.id;
+            sameMedia = oldMessage.media.document.id == newMessage.media.document.id && oldMessage.media.document.id != 0;
+        } else {
+            sameMedia = oldMessage.media.getClass() == newMessage.media.getClass();
         }
 
         if (force) {
@@ -108,16 +118,22 @@ public class AyuMessagesController {
             return;
         }
 
+        var lastRevision = editedMessageDao.getLastRevision(prefs.getUserId(), prefs.getDialogId(), prefs.getMessageId());
+
         var revision = new EditedMessage();
         AyuMessageUtils.map(prefs, revision);
         AyuMessageUtils.mapMedia(prefs, revision, !sameMedia);
 
-        if (!sameMedia && !TextUtils.isEmpty(revision.mediaPath)) {
-            var lastRevision = editedMessageDao.getLastRevision(prefs.getUserId(), prefs.getDialogId(), prefs.getMessageId());
+        if (lastRevision != null && !force) {
+            boolean sameTextAsLast = TextUtils.equals(lastRevision.text, revision.text);
+            boolean sameMediaAsLast = TextUtils.equals(lastRevision.mediaPath, revision.mediaPath) && lastRevision.documentType == revision.documentType;
+            if (sameTextAsLast && sameMediaAsLast && Math.abs(revision.entityCreateDate - lastRevision.entityCreateDate) <= 5) {
+                return;
+            }
+        }
 
+        if (!sameMedia && !TextUtils.isEmpty(revision.mediaPath)) {
             if (lastRevision != null && !TextUtils.equals(revision.mediaPath, lastRevision.mediaPath) && lastRevision.mediaPath != null && !lastRevision.mediaPath.contains(attachmentsSubfolder)) {
-                // update previous revisions to reflect media change
-                // like, there's no previous file, so replace it with one we copied before...
                 editedMessageDao.updateAttachmentForRevisionsBetweenDates(prefs.getUserId(), prefs.getDialogId(), prefs.getMessageId(), lastRevision.mediaPath, revision.mediaPath);
             }
         }
@@ -199,6 +215,10 @@ public class AyuMessagesController {
 
     public boolean hasAnyRevisions(long userId, long dialogId, int messageId) {
         return editedMessageDao.hasAnyRevisions(userId, dialogId, messageId);
+    }
+
+    public int getRevisionsCount(long userId, long dialogId, int messageId) {
+        return editedMessageDao.getRevisionCount(userId, dialogId, messageId);
     }
 
     public List<EditedMessage> getRevisions(long userId, long dialogId, int messageId) {
