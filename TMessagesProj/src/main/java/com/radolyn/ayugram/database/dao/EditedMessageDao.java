@@ -30,6 +30,9 @@ public interface EditedMessageDao {
     @Query("SELECT EXISTS(SELECT * FROM editedmessage WHERE userId = :userId AND dialogId = :dialogId AND messageId = :messageId)")
     boolean hasAnyRevisions(long userId, long dialogId, long messageId);
 
+    @Query("SELECT COUNT(*) FROM editedmessage WHERE userId = :userId AND dialogId = :dialogId AND messageId = :messageId")
+    int getRevisionCount(long userId, long dialogId, long messageId);
+
     @Query("SELECT COUNT(*) FROM editedmessage WHERE userId = :userId AND entityCreateDate > :fromDate")
     int getSyncCount(long userId, long fromDate);
 
