@@ -147,6 +147,10 @@ public class AyuConfig {
         if (!AyuConfig.saveDeletedMessages) {
             return false;
         }
+        long clientUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (dialogId == clientUserId) {
+            return true;
+        }
 
         var user = MessagesController.getInstance(accountId).getUser(Math.abs(dialogId));
         if (user == null) {
@@ -159,6 +163,10 @@ public class AyuConfig {
     public static boolean saveEditedMessageFor(int accountId, long dialogId) {
         if (!AyuConfig.saveMessagesHistory) {
             return false;
+        }
+        long clientUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (dialogId == clientUserId) {
+            return true;
         }
 
         var user = MessagesController.getInstance(accountId).getUser(Math.abs(dialogId));
