@@ -1347,13 +1347,53 @@ public class PushListenerController {
 
         @Override
         public void onRequestPushToken() {
-            // AyuGram: we don't support GCM/FCM
+            String currentPushString = SharedConfig.pushString;
+            if (!TextUtils.isEmpty(currentPushString)) {
+                if (BuildVars.DEBUG_VERSION && BuildVars.LOGS_ENABLED) {
+                    FileLog.d("FCM regId = " + currentPushString);
+                }
+            } else {
+                if (BuildVars.LOGS_ENABLED) {
+                    FileLog.d("FCM Registration not found.");
+                }
+            }
+            Utilities.globalQueue.postRunnable(() -> {
+                try {
+                    SharedConfig.pushStringGetTimeStart = SystemClock.elapsedRealtime();
+                    FirebaseMessaging.getInstance().getToken()
+                            .addOnCompleteListener(task -> {
+                                SharedConfig.pushStringGetTimeEnd = SystemClock.elapsedRealtime();
+                                if (!task.isSuccessful()) {
+                                    if (BuildVars.LOGS_ENABLED) {
+                                        FileLog.d("Failed to get regid");
+                                    }
+                                    SharedConfig.pushStringStatus = "__FIREBASE_FAILED__";
+                                    PushListenerController.sendRegistrationToServer(getPushType(), null);
+                                    return;
+                                }
+                                String token = task.getResult();
+                                if (!TextUtils.isEmpty(token)) {
+                                    PushListenerController.sendRegistrationToServer(getPushType(), token);
+                                }
+                            });
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+            });
         }
 
         @Override
         public boolean hasServices() {
-            // AyuGram: we don't support GCM/FCM
-            return false;
+            if (hasServices == null) {
+                try {
+                    int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ApplicationLoader.applicationContext);
+                    hasServices = resultCode == ConnectionResult.SUCCESS;
+                } catch (Exception e) {
+                    FileLog.e(e);
+                    hasServices = false;
+                }
+            }
+            return hasServices;
         }
     }
 }
