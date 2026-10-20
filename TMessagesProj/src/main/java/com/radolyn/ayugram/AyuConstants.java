@@ -33,9 +33,11 @@ public class AyuConstants {
     public static final int OPTION_HISTORY = 1338_01;
     public static final int OPTION_TTL = 1338_02;
     public static final int OPTION_READ_UNTIL = 1338_03;
+    public static final int OPTION_TELEDRIVE_FOLDER = 1338_04;
 
     public static final int DRAWER_TOGGLE_GHOST = 1000;
     public static final int DRAWER_KILL_APP = 1001;
+    public static final int DRAWER_TELEDRIVE = 1002;
 
     public static final int MESSAGE_EDITED_NOTIFICATION = 6968;
     public static final int MESSAGES_DELETED_NOTIFICATION = 6969;
