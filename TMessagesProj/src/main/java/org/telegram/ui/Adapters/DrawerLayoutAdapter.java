@@ -311,7 +311,7 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         }
 
         // --- AyuGram hook
-        items.add(new Item(AyuConstants.DRAWER_TELEDRIVE, LocaleController.getString("TeleDriveTitle", R.string.TeleDriveTitle), R.drawable.msg_folder));
+        items.add(new Item(AyuConstants.DRAWER_TELEDRIVE, LocaleController.getString("TeleDriveTitle", R.string.TeleDriveTitle), R.drawable.msg_folders));
         items.add(null);
         if (AyuConfig.showGhostToggleInDrawer) {
             var msg = AyuConfig.isGhostModeActive()
