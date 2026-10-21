@@ -791,13 +791,8 @@ public class AyuTeleDriveController {
                         null,
                         null,
                         null,
-                        null,
                         true,
-                        0,
-                        null,
-                        null,
-                        0,
-                        false
+                        0
                 );
                 dao.setWorkspaceIndex(chatId, TeleDriveModels.INDEX_MODE_CLOUD, indexChatId, oldIndexMsgId, revision);
                 dao.setWorkspaceSynced(chatId, seq);
@@ -905,13 +900,8 @@ public class AyuTeleDriveController {
                             null,
                             null,
                             null,
-                            null,
                             true,
-                            0,
-                            null,
-                            null,
-                            0,
-                            false
+                            0
                     );
                 });
                 try {
