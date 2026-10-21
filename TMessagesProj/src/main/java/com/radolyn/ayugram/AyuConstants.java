@@ -35,6 +35,9 @@ public class AyuConstants {
     public static final int OPTION_READ_UNTIL = 1338_03;
     public static final int OPTION_TELEDRIVE_FOLDER = 1338_04;
 
+    public static final int CHAT_MENU_TELEDRIVE_TOGGLE = 1338_10;
+    public static final int CHAT_MENU_TELEDRIVE_VAULT = 1338_11;
+
     public static final int DRAWER_TOGGLE_GHOST = 1000;
     public static final int DRAWER_KILL_APP = 1001;
     public static final int DRAWER_TELEDRIVE = 1002;

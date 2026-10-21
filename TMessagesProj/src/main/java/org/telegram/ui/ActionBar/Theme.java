@@ -4713,7 +4713,13 @@ public class Theme {
                 oldEditorNew.apply();
             }
 
-            selectedAutoNightType = preferences.getInt("selectedAutoNightType", AUTO_NIGHT_TYPE_NONE);
+            if (!preferences.getBoolean("ayu_system_theme_default_set", false)) {
+                preferences.edit()
+                        .putInt("selectedAutoNightType", AUTO_NIGHT_TYPE_SYSTEM)
+                        .putBoolean("ayu_system_theme_default_set", true)
+                        .apply();
+            }
+            selectedAutoNightType = preferences.getInt("selectedAutoNightType", AUTO_NIGHT_TYPE_SYSTEM);
             autoNightScheduleByLocation = preferences.getBoolean("autoNightScheduleByLocation", false);
             autoNightBrighnessThreshold = preferences.getFloat("autoNightBrighnessThreshold", 0.25f);
             autoNightDayStartTime = preferences.getInt("autoNightDayStartTime", 22 * 60);
@@ -4777,9 +4783,11 @@ public class Theme {
         int switchToTheme = needSwitchToTheme();
         if (switchToTheme == 2) {
             applyingTheme = currentNightTheme;
+        } else if (switchToTheme == 1 && selectedAutoNightType == AUTO_NIGHT_TYPE_SYSTEM) {
+            applyingTheme = currentDayTheme;
         }
         applyTheme(applyingTheme, false, false, switchToTheme == 2);
-        AndroidUtilities.runOnUIThread(Theme::checkAutoNightThemeConditions);
+        AndroidUtilities.runOnUIThread(() -> Theme.checkAutoNightThemeConditions(true));
     }
 
     private static void sortAccents(ThemeInfo info) {

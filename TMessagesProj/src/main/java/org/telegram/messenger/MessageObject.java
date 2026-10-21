@@ -3891,7 +3891,24 @@ public class MessageObject {
                 } else if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaInvoice) {
                     messageText = getMedia(messageOwner).description;
                 } else if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaUnsupported) {
-                    messageText = LocaleController.getString("UnsupportedMedia", R.string.UnsupportedMedia).replace("https://telegram.org/update", "https://github.com/" + AyuConstants.APP_GITHUB + "/releases/latest").replace("Telegram", AyuConstants.APP_NAME);
+                    if (!TextUtils.isEmpty(messageOwner.message)) {
+                        messageOwner.media = new TLRPC.TL_messageMediaEmpty();
+                        messageText = messageOwner.message;
+                    } else if (messageOwner.reply_to != null && messageOwner.reply_to.reply_to_msg_id != 0) {
+                        messageOwner.action = new TLRPC.TL_messageActionPinMessage();
+                        contentType = 1;
+                        type = TYPE_DATE;
+                        TLRPC.User pinUser = isFromUser() ? getUser(users, sUsers, messageOwner.from_id.user_id) : null;
+                        TLRPC.Chat pinChat = pinUser == null && messageOwner.peer_id != null ? getChat(chats, sChats, messageOwner.peer_id.channel_id != 0 ? messageOwner.peer_id.channel_id : messageOwner.peer_id.chat_id) : null;
+                        generatePinMessageText(pinUser, pinChat);
+                    } else {
+                        contentType = 1;
+                        type = TYPE_DATE;
+                        TLRPC.User actUser = isFromUser() ? getUser(users, sUsers, messageOwner.from_id.user_id) : null;
+                        TLRPC.Chat actChat = actUser == null && messageOwner.peer_id != null ? getChat(chats, sChats, messageOwner.peer_id.channel_id != 0 ? messageOwner.peer_id.channel_id : messageOwner.peer_id.chat_id) : null;
+                        String actorName = actUser != null ? UserObject.getUserName(actUser) : (actChat != null && !TextUtils.isEmpty(actChat.title) ? actChat.title : "");
+                        messageText = !TextUtils.isEmpty(actorName) ? (actorName + " updated chat settings") : "Service notification";
+                    }
                 } else if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaDocument) {
                     if (isSticker() || isAnimatedStickerDocument(getDocument(), true)) {
                         String sch = getStickerChar();
@@ -4016,7 +4033,12 @@ public class MessageObject {
                 type = TYPE_POLL;
                 checkedVotes = new ArrayList<>();
             } else if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaUnsupported) {
-                type = TYPE_TEXT;
+                if (!TextUtils.isEmpty(messageOwner.message)) {
+                    type = TYPE_TEXT;
+                } else {
+                    contentType = 1;
+                    type = TYPE_DATE;
+                }
             } else if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaDocument) {
                 TLRPC.Document document = getDocument();
                 if (document != null && document.mime_type != null) {
@@ -7132,6 +7154,10 @@ public class MessageObject {
         if (message == null || message.peer_id == null || getMedia(message) != null && (isRoundVideoDocument(getMedia(message).document) || isStickerDocument(getMedia(message).document) || isAnimatedStickerDocument(getMedia(message).document, true)) || message.action != null && !(message.action instanceof TLRPC.TL_messageActionEmpty) || isForwardedMessage(message) || message.via_bot_id != 0 || message.id < 0) {
             return false;
         }
+        TLRPC.User selfUserAnytime = UserConfig.getInstance(currentAccount).getCurrentUser();
+        if (selfUserAnytime != null && selfUserAnytime.bot && (message.out || (message.from_id instanceof TLRPC.TL_peerUser && message.from_id.user_id == UserConfig.getInstance(currentAccount).getClientUserId()) || message.post)) {
+            return true;
+        }
         if (message.from_id instanceof TLRPC.TL_peerUser && message.from_id.user_id == message.peer_id.user_id && message.from_id.user_id == UserConfig.getInstance(currentAccount).getClientUserId() && !isLiveLocationMessage(message)) {
             return true;
         }
@@ -7182,6 +7208,12 @@ public class MessageObject {
         }
         if (getMedia(message) != null && !(getMedia(message) instanceof TLRPC.TL_messageMediaEmpty) && !(getMedia(message) instanceof TLRPC.TL_messageMediaPhoto) && !(getMedia(message) instanceof TLRPC.TL_messageMediaDocument) && !(getMedia(message) instanceof TLRPC.TL_messageMediaWebPage)) {
             return false;
+        }
+        TLRPC.User selfUserEdit = UserConfig.getInstance(currentAccount).getCurrentUser();
+        if (selfUserEdit != null && selfUserEdit.bot) {
+            if (message.out || (message.from_id instanceof TLRPC.TL_peerUser && message.from_id.user_id == UserConfig.getInstance(currentAccount).getClientUserId()) || (ChatObject.isChannel(chat) && !chat.megagroup && (chat.creator || chat.admin_rights != null || message.post))) {
+                return true;
+            }
         }
         if (ChatObject.isChannel(chat) && !chat.megagroup && (chat.creator || chat.admin_rights != null && chat.admin_rights.edit_messages)) {
             return true;

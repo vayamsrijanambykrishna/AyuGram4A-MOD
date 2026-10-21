@@ -560,10 +560,12 @@ public class ReactionsLayoutInBubble {
             if (reaction != null) {
                 if (visibleReaction.emojicon != null) {
                     TLRPC.TL_availableReaction r = MediaDataController.getInstance(currentAccount).getReactionsMap().get(visibleReaction.emojicon);
-                    if (r != null) {
+                    if (r != null && r.center_icon != null) {
                         //imageReceiver.setImage(ImageLocation.getForDocument(r.static_icon), "40_40", svgThumb, "webp", r, 1);
                         SvgHelper.SvgDrawable svgThumb = DocumentObject.getSvgThumb(r.static_icon, Theme.key_windowBackgroundGray, 1.0f);
                         imageReceiver.setImage(ImageLocation.getForDocument(r.center_icon), "40_40_lastreactframe", svgThumb, "webp", r, 1);
+                    } else {
+                        imageReceiver.setImageBitmap(org.telegram.messenger.Emoji.getEmojiBigDrawable(visibleReaction.emojicon));
                     }
                 } else if (visibleReaction.documentId != 0) {
                     animatedEmojiDrawable = new AnimatedEmojiDrawable(AnimatedEmojiDrawable.CACHE_TYPE_ALERT_PREVIEW, currentAccount, visibleReaction.documentId);
@@ -916,7 +918,7 @@ public class ReactionsLayoutInBubble {
             imageReceiver.setParentView(parentView);
             imageReceiver.setUniqKeyPrefix(Integer.toString(animationUniq++));
             TLRPC.TL_availableReaction r = MediaDataController.getInstance(currentAccount).getReactionsMap().get(reaction.emojicon);
-            if (r != null) {
+            if (r != null && r.center_icon != null) {
                 imageReceiver.setImage(ImageLocation.getForDocument(r.center_icon), "40_40_nolimit", null, "tgs", r, 1);
             }
             imageReceiver.setAutoRepeat(0);

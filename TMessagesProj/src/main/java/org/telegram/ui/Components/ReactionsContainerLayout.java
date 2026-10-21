@@ -990,6 +990,10 @@ public class ReactionsContainerLayout extends FrameLayout implements Notificatio
             allReactionsAvailable = true;
             fillRecentReactionsList(visibleReactions);
         }
+        if (visibleReactions.isEmpty()) {
+            allReactionsAvailable = true;
+            fillRecentReactionsList(visibleReactions);
+        }
         filterReactions(visibleReactions);
         setVisibleReactionsList(visibleReactions);
 
@@ -1342,7 +1346,8 @@ public class ReactionsContainerLayout extends FrameLayout implements Notificatio
             resetAnimation();
             currentReaction = react;
             selected = selectedReactions.contains(react);
-            hasEnterAnimation = currentReaction.emojicon != null && (showCustomEmojiReaction() || allReactionsIsDefault) && LiteMode.isEnabled(LiteMode.FLAG_ANIMATED_EMOJI_REACTIONS);
+            TLRPC.TL_availableReaction checkReact = currentReaction.emojicon != null ? MediaDataController.getInstance(currentAccount).getReactionsMap().get(currentReaction.emojicon) : null;
+            hasEnterAnimation = currentReaction.emojicon != null && checkReact != null && checkReact.select_animation != null && (showCustomEmojiReaction() || allReactionsIsDefault) && LiteMode.isEnabled(LiteMode.FLAG_ANIMATED_EMOJI_REACTIONS);
             if (currentReaction.emojicon != null) {
                 updateImage(react);
 
@@ -1383,7 +1388,7 @@ public class ReactionsContainerLayout extends FrameLayout implements Notificatio
         private void updateImage(ReactionsLayoutInBubble.VisibleReaction react) {
             if (currentReaction.emojicon != null) {
                 TLRPC.TL_availableReaction defaultReaction = MediaDataController.getInstance(currentAccount).getReactionsMap().get(currentReaction.emojicon);
-                if (defaultReaction != null) {
+                if (defaultReaction != null && defaultReaction.select_animation != null) {
                     SvgHelper.SvgDrawable svgThumb = DocumentObject.getSvgThumb(defaultReaction.activate_animation, Theme.key_windowBackgroundWhiteGrayIcon, 0.2f);
                     if (!LiteMode.isEnabled(LiteMode.FLAG_ANIMATED_EMOJI_REACTIONS)) {
                         if (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW) {
@@ -1400,6 +1405,11 @@ public class ReactionsContainerLayout extends FrameLayout implements Notificatio
 
                     preloadImageReceiver.setAllowStartLottieAnimation(false);
                     MediaDataController.getInstance(currentAccount).preloadImage(preloadImageReceiver, ImageLocation.getForDocument(defaultReaction.around_animation), ReactionsEffectOverlay.getFilterForAroundAnimation());
+                } else {
+                    Drawable emojiDrawable = org.telegram.messenger.Emoji.getEmojiBigDrawable(currentReaction.emojicon);
+                    loopImageView.getImageReceiver().setImageBitmap(emojiDrawable);
+                    enterImageView.getImageReceiver().setImageBitmap(emojiDrawable);
+                    pressedBackupImageView.getImageReceiver().setImageBitmap(emojiDrawable);
                 }
             }
         }

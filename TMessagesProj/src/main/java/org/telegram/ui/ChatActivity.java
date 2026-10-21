@@ -371,6 +371,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     private ActionBarMenuItem.Item timeItem2;
     private ActionBarMenu.LazyItem attachItem;
     private ActionBarMenuItem headerItem;
+    private ActionBarMenuSubItem teleDriveToggleItem;
+    private ActionBarMenuSubItem teleDriveVaultItem;
+    private AyuTeleDriveActivity.InChatDriveView teleDriveInChatView;
     private ActionBarMenu.LazyItem editTextItem;
     private ActionBarMenuItem searchItem;
     private ActionBarMenuItem.Item translateItem;
@@ -2940,11 +2943,17 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 if (id == -1) {
                     if (actionBar.isActionModeShowed()) {
                         clearSelectionMode();
+                    } else if (teleDriveInChatView != null && teleDriveInChatView.getVisibility() == View.VISIBLE && teleDriveInChatView.canNavigateUp()) {
+                        teleDriveInChatView.navigateUpFolder();
                     } else {
                         if (!checkRecordLocked(true)) {
                             finishFragment();
                         }
                     }
+                } else if (id == AyuConstants.CHAT_MENU_TELEDRIVE_TOGGLE) {
+                    AyuTeleDriveActivity.toggleInChatDriveMode(ChatActivity.this, currentAccount, dialog_id, teleDriveInChatView, teleDriveToggleItem);
+                } else if (id == AyuConstants.CHAT_MENU_TELEDRIVE_VAULT) {
+                    AyuTeleDriveActivity.showInChatVaultSettings(ChatActivity.this, currentAccount, dialog_id, teleDriveInChatView, teleDriveToggleItem);
                 } else if (id == view_as_topics) {
                     TopicsFragment.prepareToSwitchAnimation(ChatActivity.this);
                 } else if (id == copy) {
@@ -3492,6 +3501,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 headerItem.lazilyAddSubItem(report, R.drawable.msg_report, LocaleController.getString("ReportChat", R.string.ReportChat));
             }
             headerItem.lazilyAddSubItem(to_beginning, R.drawable.msg_to_beginning, LocaleController.getString("ToBeginning", R.string.ToBeginning));
+            boolean isDriveModeNow = com.radolyn.ayugram.teledrive.AyuTeleDriveController.getInstance().isDriveModeEnabled(dialog_id);
+            teleDriveToggleItem = headerItem.lazilyAddSubItem(AyuConstants.CHAT_MENU_TELEDRIVE_TOGGLE, R.drawable.msg_folders, isDriveModeNow ? "TeleDrive Mode: ON" : "TeleDrive Mode: OFF");
+            teleDriveVaultItem = headerItem.lazilyAddSubItem(AyuConstants.CHAT_MENU_TELEDRIVE_VAULT, R.drawable.msg_settings_old, "TeleDrive Vault & Sync");
             if (currentChat != null && (ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_PIN) || ChatObject.isChannel(currentChat)) || currentEncryptedChat == null && currentUser != null) {
                 headerItem.lazilyAddSubItem(show_pinned, R.drawable.msg_pin, LocaleController.getString("PinnedMessage", R.string.PinnedMessage));
             }
@@ -5712,6 +5724,24 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         });
 
         contentView.addView(chatListView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+
+        teleDriveInChatView = new AyuTeleDriveActivity.InChatDriveView(context, this, currentAccount, dialog_id, msgId -> {
+            if (teleDriveInChatView != null) {
+                teleDriveInChatView.setVisibility(View.GONE);
+            }
+            if (teleDriveToggleItem != null) {
+                teleDriveToggleItem.setText("TeleDrive Mode: OFF");
+            }
+            com.radolyn.ayugram.teledrive.AyuTeleDriveController.getInstance().setDriveModeEnabled(dialog_id, false);
+            scrollToMessageId(msgId, 0, true, 0, true, 0);
+        });
+        if (com.radolyn.ayugram.teledrive.AyuTeleDriveController.getInstance().isDriveModeEnabled(dialog_id)) {
+            teleDriveInChatView.setVisibility(View.VISIBLE);
+            teleDriveInChatView.reloadData(true);
+        } else {
+            teleDriveInChatView.setVisibility(View.GONE);
+        }
+        contentView.addView(teleDriveInChatView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         selectionReactionsOverlay = new ChatSelectionReactionMenuOverlay(this, context);
         contentView.addView(selectionReactionsOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -24319,7 +24349,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 options.add(AyuConstants.OPTION_READ_UNTIL);
                 icons.add(R.drawable.msg_view_file);
             }
-            if (message != null && message.messageOwner != null && message.messageOwner.media != null && !(message.messageOwner.media instanceof TLRPC.TL_messageMediaEmpty)) {
+            if (message != null && message.messageOwner != null && message.getId() > 0) {
                 items.add(LocaleController.getString("TeleDriveSaveToFolder", R.string.TeleDriveSaveToFolder));
                 options.add(AyuConstants.OPTION_TELEDRIVE_FOLDER);
                 icons.add(R.drawable.msg_folders);
@@ -24353,7 +24383,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                     isReactionsAvailable = !isSecretChat() && !isInScheduleMode() && message.isReactionsAvailable() && (chatInfo != null && !(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone)) && !availableReacts.isEmpty() && !message.messageOwner.ayuDeleted;
                 }
             } else {
-                isReactionsAvailable = !message.isSecretMedia() && !isSecretChat() && !isInScheduleMode() && message.isReactionsAvailable() && (chatInfo != null && !(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone) || (chatInfo == null && !ChatObject.isChannel(currentChat)) || currentUser != null) && !availableReacts.isEmpty() && !message.messageOwner.ayuDeleted;
+                boolean isBotUser = getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot;
+                isReactionsAvailable = !message.isSecretMedia() && !isSecretChat() && !isInScheduleMode() && message.isReactionsAvailable() && (isBotUser || chatInfo != null && !(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone) || (chatInfo == null && !ChatObject.isChannel(currentChat)) || currentUser != null) && !availableReacts.isEmpty() && !message.messageOwner.ayuDeleted;
             }
             boolean showMessageSeen = !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod)  && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && (v instanceof ChatMessageCell);
             boolean showSponsorInfo = selectedObject != null && selectedObject.isSponsored() && (selectedObject.sponsoredInfo != null || selectedObject.sponsoredAdditionalInfo != null);
@@ -25703,13 +25734,14 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         updatePinnedMessageView(true);
         updateVisibleRows();
 
-        if (!messageObject.scheduled) {
+        boolean isBotAccount = getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot;
+        if (!messageObject.scheduled && !isBotAccount) {
             TLRPC.TL_messages_getMessageEditData req = new TLRPC.TL_messages_getMessageEditData();
             req.peer = getMessagesController().getInputPeer(dialog_id);
             req.id = messageObject.getId();
             editingMessageObjectReqId = getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 editingMessageObjectReqId = 0;
-                if (response == null) {
+                if (response == null && (error == null || error.text == null || !error.text.contains("BOT"))) {
                     if (getParentActivity() == null) {
                         return;
                     }
@@ -25723,6 +25755,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                         chatActivityEnterView.setEditingMessageObject(null, false);
                         hideFieldPanel(true);
                     }
+                } else if (chatActivityEnterView != null) {
+                    chatActivityEnterView.showEditDoneProgress(false, true);
                 }
             }));
         } else {
@@ -26824,6 +26858,10 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
 
     @Override
     public boolean onBackPressed() {
+        if (teleDriveInChatView != null && teleDriveInChatView.getVisibility() == View.VISIBLE && teleDriveInChatView.canNavigateUp()) {
+            teleDriveInChatView.navigateUpFolder();
+            return false;
+        }
         if (selectionReactionsOverlay != null && !selectionReactionsOverlay.onBackPressed()) {
             return false;
         } else if (ContentPreviewViewer.getInstance().isVisible()) {

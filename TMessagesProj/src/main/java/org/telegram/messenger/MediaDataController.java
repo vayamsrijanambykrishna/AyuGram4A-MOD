@@ -632,7 +632,57 @@ public class MediaDataController extends BaseController {
         });
     }
 
+    public void ensureBotFallbackReactions() {
+        if (!enabledReactionsList.isEmpty()) {
+            return;
+        }
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (a != currentAccount && UserConfig.getInstance(a).isClientActivated()) {
+                List<TLRPC.TL_availableReaction> other = MediaDataController.getInstance(a).reactionsList;
+                if (other != null && !other.isEmpty()) {
+                    reactionsList.clear();
+                    reactionsMap.clear();
+                    enabledReactionsList.clear();
+                    reactionsList.addAll(other);
+                    for (int i = 0; i < reactionsList.size(); i++) {
+                        TLRPC.TL_availableReaction r = reactionsList.get(i);
+                        r.positionInList = i;
+                        reactionsMap.put(r.reaction, r);
+                        if (!r.inactive) {
+                            enabledReactionsList.add(r);
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        String[] botEmojis = new String[]{
+                "👍", "❤️", "🔥", "🥰", "👏", "😁", "🤔", "🤯",
+                "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩", "🙏",
+                "👌", "🕊", "🤡", "😍", "❤️‍🔥", "💯", "🤣", "⚡",
+                "🏆", "💔", "🍓", "🍾", "💋", "😭", "🤓", "👻",
+                "👀", "🤝", "🫡", "🗿", "🆒", "😎", "👎"
+        };
+        reactionsList.clear();
+        reactionsMap.clear();
+        enabledReactionsList.clear();
+        for (int i = 0; i < botEmojis.length; i++) {
+            TLRPC.TL_availableReaction ar = new TLRPC.TL_availableReaction();
+            ar.reaction = botEmojis[i];
+            ar.title = botEmojis[i];
+            ar.inactive = false;
+            ar.premium = false;
+            ar.positionInList = i;
+            reactionsList.add(ar);
+            reactionsMap.put(ar.reaction, ar);
+            enabledReactionsList.add(ar);
+        }
+    }
+
     public List<TLRPC.TL_availableReaction> getReactionsList() {
+        if (reactionsList.isEmpty()) {
+            ensureBotFallbackReactions();
+        }
         return reactionsList;
     }
 
@@ -6965,6 +7015,9 @@ public class MediaDataController extends BaseController {
     }
 
     public List<TLRPC.TL_availableReaction> getEnabledReactionsList() {
+        if (enabledReactionsList.isEmpty()) {
+            ensureBotFallbackReactions();
+        }
         return enabledReactionsList;
     }
 

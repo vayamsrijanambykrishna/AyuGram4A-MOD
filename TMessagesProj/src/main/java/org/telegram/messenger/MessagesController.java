@@ -307,9 +307,60 @@ public class MessagesController extends BaseController implements NotificationCe
 
     private UserNameResolver userNameResolver;
 
+    public void ensureAutoDialogFilters(ArrayList<DialogFilter> targetList) {
+        if (targetList == null) {
+            return;
+        }
+        boolean hasDefault = false;
+        for (int i = 0; i < targetList.size(); i++) {
+            if (targetList.get(i).isDefault()) {
+                hasDefault = true;
+                break;
+            }
+        }
+        if (!hasDefault) {
+            DialogFilter def = new DialogFilter();
+            def.id = 0;
+            def.order = 0;
+            def.name = "ALL_CHATS";
+            targetList.add(0, def);
+            dialogFiltersById.put(def.id, def);
+        }
+        if (targetList.size() <= 1) {
+            int[][] autoSpecs = new int[][]{
+                    {201, 1, DIALOG_FILTER_FLAG_GROUPS | DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED},
+                    {202, 2, DIALOG_FILTER_FLAG_BOTS | DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED},
+                    {203, 3, DIALOG_FILTER_FLAG_CHANNELS | DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED},
+                    {204, 4, DIALOG_FILTER_FLAG_CONTACTS | DIALOG_FILTER_FLAG_NON_CONTACTS | DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED}
+            };
+            String[] autoNames = new String[]{
+                    LocaleController.getString("FilterGroups", R.string.FilterGroups),
+                    LocaleController.getString("FilterBots", R.string.FilterBots),
+                    LocaleController.getString("FilterChannels", R.string.FilterChannels),
+                    LocaleController.getString("FilterContacts", R.string.FilterContacts)
+            };
+            String[] autoEmojis = new String[]{"\uD83D\uDC65", "\uD83E\uDD16", "\uD83D\uDCE2", "\uD83D\uDC64"};
+            for (int i = 0; i < autoSpecs.length; i++) {
+                DialogFilter f = new DialogFilter();
+                f.id = autoSpecs[i][0];
+                f.order = autoSpecs[i][1];
+                f.flags = autoSpecs[i][2];
+                f.name = autoNames[i];
+                f.emoticon = autoEmojis[i];
+                f.locked = false;
+                targetList.add(f);
+                dialogFiltersById.put(f.id, f);
+            }
+        }
+    }
+
     public ArrayList<DialogFilter> getDialogFilters() {
         if (frozenDialogFilters != null) {
             return frozenDialogFilters;
+        }
+        if (dialogFilters.size() <= 1) {
+            ensureAutoDialogFilters(dialogFilters);
+            sortDialogs(null);
         }
         return dialogFilters;
     }
@@ -1734,6 +1785,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         DialogFilter filter = dialogFilters.get(a);
                         dialogFiltersById.put(filter.id, filter);
                     }
+                    ensureAutoDialogFilters(dialogFilters);
                     Collections.sort(dialogFilters, (o1, o2) -> {
                         if (o1.order > o2.order) {
                             return 1;
@@ -17173,9 +17225,28 @@ public class MessagesController extends BaseController implements NotificationCe
         unreadUnmutedDialogs = 0;
         boolean selfAdded = false;
         long selfId = getUserConfig().getClientUserId();
-        if (selectedDialogFilter[0] != null || selectedDialogFilter[1] != null) {
-            for (int b = 0; b < selectedDialogFilter.length; b++) {
-                sortingDialogFilter = selectedDialogFilter[b];
+        ArrayList<DialogFilter> filtersToSort = new ArrayList<>();
+        if (dialogFilters != null) {
+            for (int i = 0; i < dialogFilters.size(); i++) {
+                DialogFilter df = dialogFilters.get(i);
+                if (df != null && !df.isDefault() && !filtersToSort.contains(df)) {
+                    filtersToSort.add(df);
+                }
+            }
+        }
+        for (int b = 0; b < selectedDialogFilter.length; b++) {
+            if (selectedDialogFilter[b] != null && !filtersToSort.contains(selectedDialogFilter[b])) {
+                filtersToSort.add(selectedDialogFilter[b]);
+            }
+        }
+        if (!filtersToSort.isEmpty()) {
+            try {
+                Collections.sort(allDialogs, dialogDateComparator);
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            for (int b = 0; b < filtersToSort.size(); b++) {
+                sortingDialogFilter = filtersToSort.get(b);
                 if (sortingDialogFilter == null) {
                     continue;
                 }
@@ -17183,11 +17254,6 @@ public class MessagesController extends BaseController implements NotificationCe
                 ArrayList<TLRPC.Dialog> dialogsForward = sortingDialogFilter.dialogsForward;
                 dialogs.clear();
                 dialogsForward.clear();
-                try {
-                    Collections.sort(allDialogs, dialogDateComparator);
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
                 for (int a = 0, N = allDialogs.size(); a < N; a++) {
                     TLRPC.Dialog d = allDialogs.get(a);
                     if (d instanceof TLRPC.TL_dialog) {

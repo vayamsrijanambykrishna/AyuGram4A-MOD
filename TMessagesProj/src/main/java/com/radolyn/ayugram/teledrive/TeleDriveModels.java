@@ -10,7 +10,7 @@ import java.util.List;
 
 public class TeleDriveModels {
     public static final String ROOT_ID = "root";
-    public static final String ROOT_LABEL = "Internal Storage";
+    public static final String ROOT_LABEL = "Root Storage";
     public static final String INDEX_FILE_NAME = "index.json";
     public static final String INDEX_CAPTION_TAG = "#TeleDriveIndex";
     public static final String DEFAULT_VAULT_TITLE = "TeleDrive_Vault";
@@ -28,6 +28,7 @@ public class TeleDriveModels {
     public static final String FILE_KIND_AUDIO = "AUDIO";
     public static final String FILE_KIND_ANIMATION = "ANIMATION";
     public static final String FILE_KIND_VOICE = "VOICE";
+    public static final String FILE_KIND_MESSAGE = "MESSAGE";
 
     public static class IndexDocument {
         public int schema = 1;

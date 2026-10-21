@@ -3841,9 +3841,119 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         contentView.addView(filtersView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
         filtersView.setVisibility(View.GONE);
 
+        boolean showBottomNavPill = !isInPreviewMode() && !onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT && folderId == 0;
         floatingButtonContainer = new FrameLayout(context);
         floatingButtonContainer.setVisibility(isInPreviewMode() || onlySelect && initialDialogsType != 10 || folderId != 0 ? View.GONE : View.VISIBLE);
-        contentView.addView(floatingButtonContainer, LayoutHelper.createFrame(56, 56, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.BOTTOM, LocaleController.isRTL ? 14 : 0, 0, LocaleController.isRTL ? 0 : 14, 14));
+        contentView.addView(floatingButtonContainer, LayoutHelper.createFrame(56, 56, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.BOTTOM, LocaleController.isRTL ? 14 : 0, 0, LocaleController.isRTL ? 0 : 14, showBottomNavPill ? 82 : 14));
+
+        if (showBottomNavPill) {
+            LinearLayout bottomPill = new LinearLayout(context);
+            bottomPill.setOrientation(LinearLayout.HORIZONTAL);
+            bottomPill.setGravity(Gravity.CENTER_VERTICAL);
+            bottomPill.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(4), AndroidUtilities.dp(6), AndroidUtilities.dp(4));
+            android.graphics.drawable.GradientDrawable pillBg = new android.graphics.drawable.GradientDrawable();
+            pillBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            pillBg.setCornerRadius(AndroidUtilities.dp(30));
+            int surfaceColor = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
+            pillBg.setColor(ColorUtils.setAlphaComponent(surfaceColor, 245));
+            pillBg.setStroke(AndroidUtilities.dp(1), ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText), 38));
+            bottomPill.setBackground(pillBg);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                bottomPill.setElevation(AndroidUtilities.dp(6));
+            }
+
+            String[] tabTitles = new String[]{
+                    LocaleController.getString("Chats", R.string.FilterChats),
+                    LocaleController.getString("Contacts", R.string.Contacts),
+                    LocaleController.getString("Settings", R.string.Settings),
+                    "Profile"
+            };
+            int[] tabIcons = new int[]{
+                    R.drawable.msg_discussion,
+                    R.drawable.msg_contacts,
+                    R.drawable.msg_settings_old,
+                    0
+            };
+
+            for (int t = 0; t < 4; t++) {
+                final int tabIndex = t;
+                LinearLayout tabItem = new LinearLayout(context);
+                tabItem.setOrientation(LinearLayout.VERTICAL);
+                tabItem.setGravity(Gravity.CENTER);
+                tabItem.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(4), AndroidUtilities.dp(10), AndroidUtilities.dp(4));
+
+                if (t == 0) {
+                    android.graphics.drawable.GradientDrawable activeBg = new android.graphics.drawable.GradientDrawable();
+                    activeBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                    activeBg.setCornerRadius(AndroidUtilities.dp(24));
+                    int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+                    activeBg.setColor(ColorUtils.setAlphaComponent(accent, 42));
+                    tabItem.setBackground(activeBg);
+                } else {
+                    tabItem.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), 2));
+                }
+
+                if (t < 3) {
+                    ImageView iconView = new ImageView(context);
+                    iconView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                    iconView.setImageResource(tabIcons[t]);
+                    int iconColor = t == 0 ? Theme.getColor(Theme.key_featuredStickers_addButton) : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
+                    iconView.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
+                    tabItem.addView(iconView, LayoutHelper.createLinear(24, 24, Gravity.CENTER_HORIZONTAL, 0, 1, 0, 2));
+                } else {
+                    BackupImageView avatarView = new BackupImageView(context);
+                    avatarView.setRoundRadius(AndroidUtilities.dp(12));
+                    TLRPC.User me = UserConfig.getInstance(currentAccount).getCurrentUser();
+                    AvatarDrawable avatarDrawable = new AvatarDrawable(me);
+                    avatarView.setForUserOrChat(me, avatarDrawable);
+                    tabItem.addView(avatarView, LayoutHelper.createLinear(24, 24, Gravity.CENTER_HORIZONTAL, 0, 1, 0, 2));
+                }
+
+                TextView labelView = new TextView(context);
+                labelView.setText(tabTitles[t]);
+                labelView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+                labelView.setSingleLine(true);
+                labelView.setGravity(Gravity.CENTER);
+                if (t == 0) {
+                    labelView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+                    labelView.setTextColor(Theme.getColor(Theme.key_featuredStickers_addButton));
+                } else {
+                    labelView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+                }
+                tabItem.addView(labelView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL));
+
+                tabItem.setOnClickListener(v -> {
+                    if (tabIndex == 0) {
+                        scrollToTop();
+                    } else if (tabIndex == 1) {
+                        presentFragment(new ContactsActivity(null));
+                    } else if (tabIndex == 2) {
+                        Bundle args = new Bundle();
+                        args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        presentFragment(new ProfileActivity(args));
+                    } else if (tabIndex == 3) {
+                        Bundle args = new Bundle();
+                        args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        args.putBoolean("myProfile", true);
+                        presentFragment(new ProfileActivity(args));
+                    }
+                });
+                tabItem.setOnLongClickListener(v -> {
+                    if (tabIndex == 2) {
+                        presentFragment(new com.radolyn.ayugram.ui.preferences.AyuGramPreferencesActivity());
+                        return true;
+                    } else if (tabIndex == 3) {
+                        presentFragment(new com.radolyn.ayugram.ui.teledrive.AyuTeleDriveActivity());
+                        return true;
+                    }
+                    return false;
+                });
+
+                bottomPill.addView(tabItem, new LinearLayout.LayoutParams(0, LayoutHelper.MATCH_PARENT, 1.0f));
+            }
+
+            contentView.addView(bottomPill, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 58, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 16, 0, 16, 12));
+        }
         floatingButtonContainer.setOnClickListener(v -> {
             if (parentLayout != null && parentLayout.isInPreviewMode()) {
                 finishPreviewFragment();

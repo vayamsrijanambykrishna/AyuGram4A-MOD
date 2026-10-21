@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import com.google.android.exoplayer2.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.radolyn.ayugram.AyuConfig;
 import com.radolyn.ayugram.AyuUtils;
 import com.radolyn.ayugram.database.AyuData;
 import com.radolyn.ayugram.database.dao.TeleDriveDao;
@@ -22,6 +23,7 @@ import com.radolyn.ayugram.database.entities.TeleDriveWorkspace;
 import org.telegram.messenger.*;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.PhotoViewer;
@@ -67,6 +69,45 @@ public class AyuTeleDriveController {
     }
 
     // =========================================================================
+    // 0. Per-Channel In-Chat Drive Mode & Linked Vault Persistence
+    // =========================================================================
+
+    public boolean isDriveModeEnabled(long chatId) {
+        if (chatId == 0L || AyuConfig.preferences == null) {
+            return false;
+        }
+        return AyuConfig.preferences.getBoolean("teledrive_mode_" + chatId, false);
+    }
+
+    public void setDriveModeEnabled(long chatId, boolean enabled) {
+        if (chatId == 0L || AyuConfig.editor == null) {
+            return;
+        }
+        AyuConfig.editor.putBoolean("teledrive_mode_" + chatId, enabled).apply();
+    }
+
+    public long getLinkedVaultChatId(long chatId) {
+        if (chatId == 0L) {
+            return 0L;
+        }
+        if (AyuConfig.preferences != null) {
+            long saved = AyuConfig.preferences.getLong("teledrive_vault_" + chatId, 0L);
+            if (saved != 0L) {
+                return saved;
+            }
+        }
+        TeleDriveWorkspace ws = dao.getWorkspace(chatId);
+        return ws != null ? ws.indexChatId : 0L;
+    }
+
+    public void setLinkedVaultChatId(int accountId, long chatId, long vaultChatId) {
+        if (AyuConfig.editor != null) {
+            AyuConfig.editor.putLong("teledrive_vault_" + chatId, vaultChatId).apply();
+        }
+        setIndexChannel(accountId, chatId, vaultChatId);
+    }
+
+    // =========================================================================
     // 1. Dialog & Workspace Discovery / Vault Creation
     // =========================================================================
 
@@ -97,7 +138,11 @@ public class AyuTeleDriveController {
                 }
                 boolean isChannel = ChatObject.isChannel(chat) && !chat.megagroup;
                 String kind = isChannel ? TeleDriveModels.CHAT_KIND_CHANNEL : TeleDriveModels.CHAT_KIND_GROUP;
-                boolean isVault = TeleDriveModels.DEFAULT_VAULT_TITLE.equalsIgnoreCase(chat.title);
+                boolean isVault = chat.title != null && (
+                        TeleDriveModels.DEFAULT_VAULT_TITLE.equalsIgnoreCase(chat.title) ||
+                        chat.title.toLowerCase(Locale.ROOT).contains("teledrive") ||
+                        chat.title.toLowerCase(Locale.ROOT).contains("vault")
+                );
                 boolean canPost = canPostToDialog(accountId, dialog.id);
                 summaries.add(new TeleDriveModels.ChatSummary(dialog.id, chat.title, kind, isVault, canPost));
                 seen.add(dialog.id);
@@ -164,14 +209,20 @@ public class AyuTeleDriveController {
         TeleDriveWorkspace ws = dao.getWorkspace(dialogId);
         boolean canUpload = canPostToDialog(accountId, dialogId);
         String title = getDialogTitle(accountId, dialogId);
+        long savedVaultId = AyuConfig.preferences != null ? AyuConfig.preferences.getLong("teledrive_vault_" + dialogId, 0L) : 0L;
         if (ws == null) {
             ws = new TeleDriveWorkspace();
             ws.chatId = dialogId;
             ws.title = title;
             ws.kind = getDialogKind(accountId, dialogId);
             ws.canUpload = canUpload;
-            ws.indexMode = canUpload ? TeleDriveModels.INDEX_MODE_CLOUD : TeleDriveModels.INDEX_MODE_LOCAL;
-            ws.indexChatId = canUpload ? dialogId : 0L;
+            if (savedVaultId != 0L) {
+                ws.indexMode = TeleDriveModels.INDEX_MODE_CLOUD;
+                ws.indexChatId = savedVaultId;
+            } else {
+                ws.indexMode = canUpload ? TeleDriveModels.INDEX_MODE_CLOUD : TeleDriveModels.INDEX_MODE_LOCAL;
+                ws.indexChatId = canUpload ? dialogId : 0L;
+            }
             ws.indexMessageId = 0;
             ws.indexRevision = 0L;
             ws.localSeq = 0L;
@@ -182,6 +233,9 @@ public class AyuTeleDriveController {
             dao.upsertWorkspace(ws);
         } else {
             dao.setPermissions(dialogId, canUpload, title);
+            if (savedVaultId != 0L && ws.indexChatId != savedVaultId) {
+                dao.setWorkspaceIndex(dialogId, TeleDriveModels.INDEX_MODE_CLOUD, savedVaultId, ws.indexMessageId, ws.indexRevision);
+            }
             ws = dao.getWorkspace(dialogId);
         }
         return ws;
@@ -191,7 +245,7 @@ public class AyuTeleDriveController {
         String title = TextUtils.isEmpty(rawTitle) ? TeleDriveModels.DEFAULT_VAULT_TITLE : rawTitle.trim();
         TLRPC.TL_channels_createChannel req = new TLRPC.TL_channels_createChannel();
         req.title = title;
-        req.about = "TeleDrive storage vault. Files live here; folders are described by index.json.";
+        req.about = "TeleDrive storage vault. Files & folders are described by index.json.";
         req.broadcast = true;
         ConnectionsManager.getInstance(accountId).sendRequest(req, (response, error) -> {
             if (error == null && response instanceof TLRPC.Updates) {
@@ -376,7 +430,7 @@ public class AyuTeleDriveController {
                 } else {
                     List<TeleDriveFile> batch = new ArrayList<>();
                     for (TLRPC.Message m : res.messages) {
-                        if (m == null) continue;
+                        if (m == null || m instanceof TLRPC.TL_messageService || m instanceof TLRPC.TL_messageEmpty) continue;
                         if (!fullRescan && m.id <= stopAt) {
                             reachedStop = true;
                             break;
@@ -467,7 +521,7 @@ public class AyuTeleDriveController {
     }
 
     public TeleDriveFile mapMessageToDriveFile(int accountId, long chatId, TLRPC.Message msg, String folderId, long now) {
-        if (msg == null || msg.media == null || msg.media instanceof TLRPC.TL_messageMediaEmpty || isIndexMessage(msg)) {
+        if (msg == null || msg instanceof TLRPC.TL_messageService || msg instanceof TLRPC.TL_messageEmpty || isIndexMessage(msg)) {
             return null;
         }
         if (MessageObject.isStickerMessage(msg) || MessageObject.isAnimatedStickerMessage(msg)) {
@@ -488,7 +542,8 @@ public class AyuTeleDriveController {
 
         if (msg.media instanceof TLRPC.TL_messageMediaPhoto && msg.media.photo != null && !(msg.media.photo instanceof TLRPC.TL_photoEmpty)) {
             TLRPC.PhotoSize best = FileLoader.getClosestPhotoSizeWithSize(msg.media.photo.sizes, AndroidUtilities.getPhotoSize());
-            df.name = "photo_" + msg.id + ".jpg";
+            String capTitle = !TextUtils.isEmpty(msg.message) ? extractMessageTitle(msg.message, msg.id) + ".jpg" : ("photo_" + msg.id + ".jpg");
+            df.name = capTitle;
             df.mimeType = "image/jpeg";
             df.kind = TeleDriveModels.FILE_KIND_PHOTO;
             if (best != null) {
@@ -500,6 +555,9 @@ public class AyuTeleDriveController {
         } else if (msg.media instanceof TLRPC.TL_messageMediaDocument && msg.media.document != null && !(msg.media.document instanceof TLRPC.TL_documentEmpty)) {
             TLRPC.Document doc = msg.media.document;
             String docName = FileLoader.getDocumentFileName(doc);
+            if (TextUtils.isEmpty(docName) && !TextUtils.isEmpty(msg.message)) {
+                docName = extractMessageTitle(msg.message, msg.id);
+            }
             df.size = doc.size;
             df.mimeType = doc.mime_type;
 
@@ -529,8 +587,25 @@ public class AyuTeleDriveController {
                 }
             }
             return df;
+        } else if (!TextUtils.isEmpty(msg.message)) {
+            df.kind = TeleDriveModels.FILE_KIND_MESSAGE;
+            df.name = extractMessageTitle(msg.message, msg.id);
+            df.mimeType = "text/plain";
+            df.size = msg.message.getBytes(StandardCharsets.UTF_8).length;
+            return df;
         }
         return null;
+    }
+
+    private static String extractMessageTitle(String text, int msgId) {
+        if (TextUtils.isEmpty(text)) {
+            return "Message #" + msgId;
+        }
+        String firstLine = text.trim().split("\\r?\\n")[0].trim();
+        if (firstLine.length() > 64) {
+            firstLine = firstLine.substring(0, 64) + "...";
+        }
+        return firstLine.isEmpty() ? ("Message #" + msgId) : firstLine;
     }
 
     // =========================================================================
@@ -834,6 +909,9 @@ public class AyuTeleDriveController {
 
     public void setIndexChannel(int accountId, long chatId, long newIndexChatId) {
         TeleDriveWorkspace ws = getOrCreateWorkspace(accountId, chatId);
+        if (AyuConfig.editor != null) {
+            AyuConfig.editor.putLong("teledrive_vault_" + chatId, newIndexChatId).apply();
+        }
         dao.setWorkspaceIndex(chatId, TeleDriveModels.INDEX_MODE_CLOUD, newIndexChatId, 0, ws.indexRevision);
         dao.bumpWorkspace(chatId);
         pushIndexNow(accountId, chatId);
@@ -842,6 +920,9 @@ public class AyuTeleDriveController {
     public void setLocalOnlyMode(long chatId) {
         TeleDriveWorkspace ws = dao.getWorkspace(chatId);
         if (ws == null) return;
+        if (AyuConfig.editor != null) {
+            AyuConfig.editor.remove("teledrive_vault_" + chatId).apply();
+        }
         dao.setWorkspaceIndex(chatId, TeleDriveModels.INDEX_MODE_LOCAL, 0L, 0, ws.indexRevision);
         dao.setWorkspaceSynced(chatId, ws.localSeq);
     }
@@ -922,6 +1003,21 @@ public class AyuTeleDriveController {
                 return;
             }
             Activity activity = fragment.getParentActivity();
+            if (TeleDriveModels.FILE_KIND_MESSAGE.equals(driveFile.kind) || msgObj.type == MessageObject.TYPE_TEXT) {
+                String body = msgObj.messageOwner != null && !TextUtils.isEmpty(msgObj.messageOwner.message)
+                        ? msgObj.messageOwner.message
+                        : driveFile.name;
+                AlertDialog.Builder b = new AlertDialog.Builder(activity);
+                b.setTitle(driveFile.name != null ? driveFile.name : ("Message #" + driveFile.messageId));
+                b.setMessage(body);
+                b.setPositiveButton("Copy Text", (d, w) -> {
+                    AndroidUtilities.addToClipboard(body);
+                    BulletinFactory.of(fragment).createCopyBulletin("Copied to clipboard").show();
+                });
+                b.setNegativeButton("Close", null);
+                fragment.showDialog(b.create());
+                return;
+            }
             if (msgObj.isPhoto() || msgObj.isVideo() || msgObj.isGif() || msgObj.isRoundVideo()) {
                 PhotoViewer.getInstance().setParentActivity(fragment);
                 ArrayList<MessageObject> list = new ArrayList<>();
