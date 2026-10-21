@@ -165,7 +165,7 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
             int accountId,
             long dialogId,
             InChatDriveView inChatDriveView,
-            ActionBarMenuSubItem toggleMenuItem
+            ActionBarMenuItem.Item toggleMenuItem
     ) {
         if (fragment == null || fragment.getParentActivity() == null || inChatDriveView == null) {
             return;
@@ -209,7 +209,7 @@ public class AyuTeleDriveActivity extends BaseFragment implements NotificationCe
             int accountId,
             long dialogId,
             InChatDriveView inChatDriveView,
-            ActionBarMenuSubItem toggleMenuItem
+            ActionBarMenuItem.Item toggleMenuItem
     ) {
         if (inChatDriveView != null) {
             inChatDriveView.showVaultSettingsSheet();

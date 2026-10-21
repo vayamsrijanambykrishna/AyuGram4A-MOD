@@ -371,8 +371,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     private ActionBarMenuItem.Item timeItem2;
     private ActionBarMenu.LazyItem attachItem;
     private ActionBarMenuItem headerItem;
-    private ActionBarMenuSubItem teleDriveToggleItem;
-    private ActionBarMenuSubItem teleDriveVaultItem;
+    private ActionBarMenuItem.Item teleDriveToggleItem;
+    private ActionBarMenuItem.Item teleDriveVaultItem;
     private AyuTeleDriveActivity.InChatDriveView teleDriveInChatView;
     private ActionBarMenu.LazyItem editTextItem;
     private ActionBarMenuItem searchItem;
