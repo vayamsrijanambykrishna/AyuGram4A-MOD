@@ -10,7 +10,7 @@
 package com.radolyn.ayugram.utils;
 
 import android.text.TextUtils;
-import android.util.LongSparseArray;
+import androidx.collection.LongSparseArray;
 import android.util.Pair;
 import android.util.SparseArray;
 import com.google.android.exoplayer2.util.Log;
